@@ -1,0 +1,12 @@
+{  
+"id": "{4C2D2C3F-C285-D749-93B7-EEC72C4AAA61}",
+"author": "Martin Hilbert",
+"name": "Modul für BIS",
+"url": "https://github.com/Hilli86/SymconMQTTPubBIS",
+"version": "1.0",
+"compatibility": {
+    "version": "7.0"
+},
+"build": 1000,
+"date": 0
+}
