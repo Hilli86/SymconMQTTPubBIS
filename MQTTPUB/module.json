@@ -3,7 +3,7 @@
 	"name": "MQTTPUB",
 	"type": 1,
 	"vendor": "Martin Hilbert",
-	"aliases": ["BIS MQTT Publisher", "MQTT Variablen zum Broker"],
+	"aliases": ["BIS MQTT Publisher"],
 	"parentRequirements": [],
 	"childRequirements": [],
 	"implemented": [],
