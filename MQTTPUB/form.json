@@ -1,0 +1,23 @@
+{
+	"elements": [
+		{
+			"type": "Label",
+			"label": "Registrierte Variablen werden bei Wertänderung als JSON an den MQTT-Broker gesendet (Skript: MQTTPUB_Subscribe)."
+		},
+		{ "name": "Active", "type": "CheckBox", "caption": "Instanz aktiv" },
+		{ "type": "Label", "label": "Verbindung" },
+		{ "name": "Host", "type": "ValidationTextBox", "caption": "MQTT-Broker (Host / IP)" },
+		{ "name": "Port", "type": "NumberSpinner", "caption": "MQTT-Port" },
+		{ "name": "User", "type": "ValidationTextBox", "caption": "Benutzername (optional)" },
+		{ "name": "Password", "type": "PasswordTextBox", "caption": "Passwort (optional)" },
+		{ "name": "ClientID", "type": "ValidationTextBox", "caption": "MQTT-Client-ID (Basis, Hostname wird angehängt)" },
+		{ "type": "Label", "label": "Veröffentlichung" },
+		{ "name": "Topic", "type": "ValidationTextBox", "caption": "MQTT-Topic-Vorlage" },
+		{ "type": "Label", "label": "Platzhalter im Topic: %varid%, %varident%, %path% (Pfad mit Unterstrichen)" },
+		{ "name": "Subscriptions", "type": "MultilineTextBox", "caption": "Abonnierte Variablen-IDs (JSON-Array, z. B. [12345, 67890])" },
+		{ "type": "Label", "label": "Leeres Array []: keine Variablen; IDs per Skript ergänzen oder hier eintragen." },
+		{ "type": "Label", "label": "Protokollierung" },
+		{ "name": "LogFile", "type": "ValidationTextBox", "caption": "CSV-Logdatei (optional, voller Pfad)" },
+		{ "name": "Debug", "type": "CheckBox", "caption": "Debug-Ausgaben (IPS-Log)" }
+	]
+}

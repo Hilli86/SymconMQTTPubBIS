@@ -2,13 +2,10 @@
 /**
  * @file
  *
- * MQTT Publisher IPSymcon PHP IO Module Class
- * uses IPSphpMQTT.php
+ * MQTT Publisher (BIS): registrierte Variablen → MQTT-Broker
+ * basiert auf IPSphpMQTT / Tommi2Day, angepasst für BIS-Nutzung
  *
- * @author Thomas Dressler
- * @copyright Thomas Dressler 2016-2018
- * @version 5.1.0
- * @date 2019-05-04
+ * @author Thomas Dressler (Original), Martin Hilbert (Fork)
  */
 
 include_once(__DIR__ . "/module_helper.php");
@@ -77,8 +74,8 @@ class MQTTPUB extends T2DModule
         //props
         $this->RegisterPropertyInteger('Port', 1883);
         $this->RegisterPropertyString('Host', 'mqttbroker');
-        $this->RegisterPropertyString('Topic', 'IPS/status/%varid%/%varident%/%path%');
-        $this->RegisterPropertyString('ClientID', 'symcon');
+        $this->RegisterPropertyString('Topic', 'bis/IPS/%varid%/%varident%/%path%');
+        $this->RegisterPropertyString('ClientID', 'symcon-bis');
         $this->RegisterPropertyString('LogFile', '');
         $this->RegisterPropertyString('User', '');
         $this->RegisterPropertyString('Password', '');
@@ -94,6 +91,8 @@ class MQTTPUB extends T2DModule
 
         //register status msg
         $this->RegisterMessage(0, self::IPS_KERNELMESSAGE );
+
+        IPS_SetName($this->InstanceID, 'BIS MQTT Publisher');
     }//function
 
     //--------------------------------------------------------
