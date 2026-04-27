@@ -8,8 +8,8 @@
  * @author Thomas Dressler (Original), Martin Hilbert (Fork)
  */
 
-include_once(__DIR__ . "/module_helper.php");
-include_once(__DIR__ . "/IPSphpMQTT.php");
+include_once(__DIR__ . "/../lib/module_helper.php");
+include_once(__DIR__ . "/../lib/IPSphpMQTT.php");
 
 /** @class MQTTPUB
  *
@@ -92,7 +92,7 @@ class MQTTPUB extends T2DModule
         //register status msg
         $this->RegisterMessage(0, self::IPS_KERNELMESSAGE );
 
-        IPS_SetName($this->InstanceID, 'BIS MQTT Publisher');
+        IPS_SetName($this->InstanceID, 'BISPublisher');
     }//function
 
     //--------------------------------------------------------

@@ -1,0 +1,11 @@
+{
+	"id": "{5E1B4ED3-B6E6-47D9-98E5-987A65CD651E}",
+	"name": "BISSUBSCRIBER",
+	"type": 1,
+	"vendor": "Martin Hilbert",
+	"aliases": ["BISSubscriber"],
+	"parentRequirements": [],
+	"childRequirements": [],
+	"implemented": [],
+	"prefix": "BISSUBSCRIBER"
+}

@@ -1,0 +1,19 @@
+{
+	"elements": [
+		{
+			"type": "Label",
+			"label": "Grundgerüst: MQTT-Nachrichten vom Broker empfangen und in IPS verarbeiten (Logik folgt)."
+		},
+		{ "name": "Active", "type": "CheckBox", "caption": "Instanz aktiv" },
+		{ "type": "Label", "label": "Verbindung" },
+		{ "name": "Host", "type": "ValidationTextBox", "caption": "MQTT-Broker (Host / IP)" },
+		{ "name": "Port", "type": "NumberSpinner", "caption": "MQTT-Port" },
+		{ "name": "User", "type": "ValidationTextBox", "caption": "Benutzername (optional)" },
+		{ "name": "Password", "type": "PasswordTextBox", "caption": "Passwort (optional)" },
+		{ "name": "ClientID", "type": "ValidationTextBox", "caption": "MQTT-Client-ID (Basis, Hostname wird angehängt)" },
+		{ "type": "Label", "label": "Abonnement" },
+		{ "name": "SubscribeTopic", "type": "ValidationTextBox", "caption": "MQTT-Topic zum Abonnieren (Platzhalter folgen)" },
+		{ "type": "Label", "label": "Protokollierung" },
+		{ "name": "Debug", "type": "CheckBox", "caption": "Debug-Ausgaben (IPS-Log)" }
+	]
+}
