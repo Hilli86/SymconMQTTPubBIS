@@ -139,8 +139,8 @@ class T2DModule extends IPSModule
         "OWN" => "{A68F9DEC-A490-4E35-B500-B45FC5F4FF6A}", //OWNet Splitter
         "XS1" => "{8B015BFA-3CDD-4D45-99C8-3F250AEF1E83}", //XS1 Splitter
         "WS2500PC" => "{90F68511-0628-4718-A7BF-EDBBC2BB55D4}", //WS2500 Splitter
-        "MQTTPUB"=> "{E4CD7A6D-ADF6-4BD2-94D6-754F57037101}", // MQTT Publisher (legacy key)
-        "BISPublisher"=> "{E4CD7A6D-ADF6-4BD2-94D6-754F57037101}", // BIS MQTT Publisher
+        "MQTTPUB"=> "{DF611933-F163-4FD6-97F8-3BCD78594A59}", // MQTT Publisher (legacy key)
+        "BISPublisher"=> "{DF611933-F163-4FD6-97F8-3BCD78594A59}", // BIS MQTT Publisher
         "MQTTSUB"=> "{5E1B4ED3-B6E6-47D9-98E5-987A65CD651E}", // MQTT Subscriber (legacy key)
         "BISSUBSCRIBER"=> "{5E1B4ED3-B6E6-47D9-98E5-987A65CD651E}", // BIS MQTT Subscriber (legacy key)
         "BISSubscriber"=> "{5E1B4ED3-B6E6-47D9-98E5-987A65CD651E}", // BIS MQTT Subscriber
