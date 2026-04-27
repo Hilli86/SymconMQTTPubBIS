@@ -1,11 +1,11 @@
 {
 	"id": "{E4CD7A6D-ADF6-4BD2-94D6-754F57037101}",
-	"name": "MQTTPUB",
+	"name": "BISPublisher",
 	"type": 1,
 	"vendor": "Martin Hilbert",
 	"aliases": ["BISPublisher"],
 	"parentRequirements": [],
 	"childRequirements": [],
 	"implemented": [],
-	"prefix": "MQTTPUB"
+	"prefix": "BISPub"
 }

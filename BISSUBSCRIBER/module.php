@@ -10,11 +10,11 @@
 include_once(__DIR__ . "/../lib/module_helper.php");
 include_once(__DIR__ . "/../lib/IPSphpMQTT.php");
 
-/** @class BISSUBSCRIBER
+/** @class BISSubscriber
  *
  * IPSymcon PHP-Modul: Subscriber-Grundgerüst für BIS
  */
-class BISSUBSCRIBER extends T2DModule
+class BISSubscriber extends T2DModule
 {
     /**
      * Constructor.

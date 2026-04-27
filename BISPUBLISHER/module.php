@@ -11,11 +11,11 @@
 include_once(__DIR__ . "/../lib/module_helper.php");
 include_once(__DIR__ . "/../lib/IPSphpMQTT.php");
 
-/** @class MQTTPUB
+/** @class BISPublisher
  *
- * %MQTTPUB  IPSymcon PHP IO Module Class
+ * %BISPublisher  IPSymcon PHP IO Module Class
  */
-class MQTTPUB extends T2DModule
+class BISPublisher extends T2DModule
 {
     //------------------------------------------------------------------------------
     //module const and vars
