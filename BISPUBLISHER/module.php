@@ -52,6 +52,9 @@ class BISPublisher extends IPSModule
 
     const DATA_MQTT_CLIENT_TX_TO_PARENT = '{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}';
 
+    /** Integrierter Symcon-MQTT-Client (Gateway), Modul-{F7A0DD2E-…} */
+    const MODULEID_MQTT_CLIENT_NATIVE = '{F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}';
+
 
 
     private $fieldlist = array('TS', 'VariableID', 'VariableType', 'VariableUpdated', 'VariableChanged', 'Value', 'Path');
@@ -79,6 +82,8 @@ class BISPublisher extends IPSModule
         $this->RegisterPropertyBoolean('Debug', false);
 
         $this->RegisterPropertyBoolean('Active', false);
+
+        $this->RegisterPropertyBoolean('PublishBufferLegacyFunction', false);
 
         $this->RegisterPropertyString('Subscriptions', json_encode(array()));
 
@@ -671,8 +676,8 @@ class BISPublisher extends IPSModule
 
 
     /**
-     * Parent (MQTT Client) wertet in ForwardData nur JSON mit "Buffer" aus:
-     * utf8_decode(Buffer) -> JSON mit Function Publish, Topic, Payload, Retain.
+     * Device -> Parent: DataID 043EA491, Buffer = JSON (nach utf8_decode im Parent).
+     * Integrierter MQTT-Client: oft nur Topic/Payload/Retain (ohne Function-Key); Schnittcher akzeptiert beides.
      */
     private function mqtt_publish_via_parent(string $topic, string $content, $objectID)
 
@@ -690,17 +695,32 @@ class BISPublisher extends IPSModule
 
         }
 
+        $parentId = (int) IPS_GetInstance($this->InstanceID)['ConnectionID'];
 
+        $parentModuleId = (string) IPS_GetInstance($parentId)['ModuleID'];
 
-        $inner = json_encode(
-            array(
-                'Function' => 'Publish',
-                'Topic'    => $topic,
-                'Payload'  => $content,
-                'Retain'   => $this->retained ? true : false,
-            ),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        $this->debug(__FUNCTION__, 'Parent InstanceID=' . $parentId . ' ModuleID=' . $parentModuleId);
+
+        if ($parentModuleId !== self::MODULEID_MQTT_CLIENT_NATIVE) {
+
+            $this->debug(__FUNCTION__, 'Hinweis: Parent-Modul-ID ist nicht der integrierte MQTT-Client (' . self::MODULEID_MQTT_CLIENT_NATIVE . '), sondern: ' . $parentModuleId);
+
+        }
+
+        $innerPayload = array(
+            'Topic'   => $topic,
+            'Payload' => $content,
+            'Retain'  => $this->retained ? 1 : 0,
+            'QoS'     => (int) $this->qos,
         );
+
+        if ((bool) IPS_GetProperty($this->InstanceID, 'PublishBufferLegacyFunction')) {
+
+            $innerPayload['Function'] = 'Publish';
+
+        }
+
+        $inner = json_encode($innerPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         $packet = json_encode(
             array(
@@ -712,7 +732,9 @@ class BISPublisher extends IPSModule
 
         $this->debug(__FUNCTION__, 'SendDataToParent: ' . $packet);
 
-        @$this->SendDataToParent($packet);
+        $result = $this->SendDataToParent($packet);
+
+        $this->debug(__FUNCTION__, 'SendDataToParent Rueckgabe: ' . print_r($result, true));
 
         $this->debug(__FUNCTION__, 'leaved');
 

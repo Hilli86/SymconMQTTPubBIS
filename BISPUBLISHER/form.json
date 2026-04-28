@@ -20,7 +20,12 @@
 		},
 		{
 			"type": "Label",
-			"caption": "Platzhalter: %varid%, %varident%, %path% (Pfad mit Unterstrichen)"
+			"caption": "Das veröffentlichte MQTT-Topic ist nur diese Vorlage (inkl. Platzhalter) – unabhängig von den Abonnements des MQTT-Clients. Der Broker erhält genau diesen Topic-String; es gibt keine automatische Verknüpfung mit der Client-Konfiguration."
+		},
+		{
+			"name": "PublishBufferLegacyFunction",
+			"type": "CheckBox",
+			"caption": "Publish-Buffer mit „Function“: „Publish“ (Schnittcher/Legacy; sonst nur Topic/Payload/Retain/QoS)"
 		},
 		{
 			"name": "Subscriptions",
