@@ -16,10 +16,10 @@ class BISSubscriber extends IPSModule
     const ST_INACTIV = 104;
     const ST_NOPARENT = 202;
 
-    /** TX zum Parent (z. B. Subscribe-Befehl an MQTT-Splitter) */
-    const DATA_SPLITTER_TX = '{97475B04-67C3-A74D-C970-E9409B0EFA1D}';
-    /** MQTT-Splitter -> Gerät (optional, z. B. Dritt-Splitter; integrierter Symcon-Client nutzt meist Simple-RX) */
-    const DATA_MQTT_CHILD_RX = '{DBDA9DF7-5D04-F49D-370A-2B9153D00D9B}';
+    /** Kind <- integrierter Symcon „MQTT Client“ (IPS_GetModule ChildRequirements) */
+    const DATA_MQTT_CLIENT_CHILD_RX = '{7F7632D9-FA40-4F38-8DEA-C83CD4325A32}';
+    /** Kind -> Parent MQTT Client (IPS_GetModule Implemented, u. a. für ForwardData) */
+    const DATA_MQTT_CLIENT_TX_TO_PARENT = '{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}';
 
     public function Create()
     {
@@ -88,7 +88,11 @@ class BISSubscriber extends IPSModule
         }
 
         $dataId = isset($data['DataID']) ? (string)$data['DataID'] : '';
-        $inner = $this->normalizePayloadArray($data, $dataId);
+        if (isset($data['Topic']) && (string)$data['Topic'] !== '') {
+            $inner = $data;
+        } else {
+            $inner = $this->normalizePayloadArray($data, $dataId);
+        }
 
         $topic = $this->extractTopicFromPayload($inner);
         $payload = $this->extractPayloadStringFromPayload($inner);
@@ -209,7 +213,7 @@ class BISSubscriber extends IPSModule
         $decoded = utf8_decode($buffer);
         $parsed = json_decode($decoded, true);
 
-        if ($dataId === self::DATA_MQTT_CHILD_RX && is_array($parsed)) {
+        if ($dataId === self::DATA_MQTT_CLIENT_CHILD_RX && is_array($parsed)) {
             return $parsed;
         }
 
@@ -309,15 +313,14 @@ class BISSubscriber extends IPSModule
 
         $topic = $this->normalizeSubscribeTopic($this->getSubscribeTopicProperty());
 
-        $body = array(
-            'Function' => 'Subscribe',
-            'Topic'    => $topic,
+        $packet = json_encode(
+            array(
+                'DataID'  => self::DATA_MQTT_CLIENT_TX_TO_PARENT,
+                'Function'=> 'Subscribe',
+                'Topic'   => $topic,
+            ),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
         );
-        $inner = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $packet = json_encode(array(
-            'DataID' => self::DATA_SPLITTER_TX,
-            'Buffer' => utf8_encode($inner),
-        ), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $this->moduleDebug(__FUNCTION__, 'SendDataToParent: ' . $packet);
         @$this->SendDataToParent($packet);
     }
