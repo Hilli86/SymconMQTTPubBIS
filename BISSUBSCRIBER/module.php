@@ -1,9 +1,7 @@
 <?
 /**
  * @file
- * MQTT Subscriber (BIS): Symcon-MQTT-Gateway (Splitter) -> IPS
- *
- * Nur IP-Symcon-Basisklasse IPSModule (ohne externes module_helper).
+ * MQTT Subscriber (BIS): integrierter Symcon-MQTT-Client (Parent) -> Variable schalten.
  *
  * @author Martin Hilbert
  */

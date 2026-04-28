@@ -27,15 +27,6 @@
 			"caption": "Das veröffentlichte Topic kommt nur aus dieser Vorlage (inkl. Platzhalter), unabhängig von den Abo-Filtern des MQTT-Clients."
 		},
 		{
-			"type": "Label",
-			"caption": "Standard: natives Symcon-Paket (PacketType 3). Nur bei Parent „MQTTClient“ (Schnittcher) „Buffer“-Format aktivieren."
-		},
-		{
-			"name": "PublishSchnittcherBuffer",
-			"type": "CheckBox",
-			"caption": "Schnittcher MQTTClient: Publish über Buffer/utf8_encode (nicht integrierter MQTT-Client)"
-		},
-		{
 			"name": "Subscriptions",
 			"type": "ValidationTextBox",
 			"caption": "Abonnierte Variablen-IDs (JSON-Array, z. B. [12345,67890])"

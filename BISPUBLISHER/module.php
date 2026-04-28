@@ -85,8 +85,6 @@ class BISPublisher extends IPSModule
 
         $this->RegisterPropertyBoolean('Active', false);
 
-        $this->RegisterPropertyBoolean('PublishSchnittcherBuffer', false);
-
         $this->RegisterPropertyString('Subscriptions', json_encode(array()));
 
 
@@ -712,9 +710,8 @@ class BISPublisher extends IPSModule
 
 
     /**
-     * Nativer IP-Symcon-MQTT-Client: flaches SendDataToParent-JSON (Community / Module):
-     * DataID 043EA491, PacketType 3 (Publish), QualityOfService, Retain, Topic, Payload.
-     * Schnittcher-MQTTClient (alt): JSON in Buffer mit utf8_encode, siehe Eigenschaft.
+     * Integrierter MQTT-Client: flaches SendDataToParent-JSON
+     * (DataID 043EA491, PacketType Publish, QualityOfService, Retain, Topic, Payload).
      */
     private function mqtt_publish_via_parent(string $topic, string $content, $objectID)
 
@@ -744,40 +741,17 @@ class BISPublisher extends IPSModule
 
         }
 
-        if ((bool) IPS_GetProperty($this->InstanceID, 'PublishSchnittcherBuffer')) {
-
-            $innerPayload = array(
-                'Topic'   => $topic,
-                'Payload' => $content,
-                'Retain'  => $this->retained ? 1 : 0,
-                'QoS'     => (int) $this->qos,
-            );
-
-            $inner = json_encode($innerPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-            $packet = json_encode(
-                array(
-                    'DataID' => self::DATA_MQTT_CLIENT_TX_TO_PARENT,
-                    'Buffer' => utf8_encode($inner),
-                ),
-                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-            );
-
-        } else {
-
-            $packet = json_encode(
-                array(
-                    'DataID'           => self::DATA_MQTT_CLIENT_TX_TO_PARENT,
-                    'PacketType'       => self::MQTT_PACKET_TYPE_PUBLISH,
-                    'QualityOfService' => (int) $this->qos,
-                    'Retain'           => (bool) $this->retained,
-                    'Topic'            => $topic,
-                    'Payload'          => $content,
-                ),
-                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-            );
-
-        }
+        $packet = json_encode(
+            array(
+                'DataID'           => self::DATA_MQTT_CLIENT_TX_TO_PARENT,
+                'PacketType'       => self::MQTT_PACKET_TYPE_PUBLISH,
+                'QualityOfService' => (int) $this->qos,
+                'Retain'           => (bool) $this->retained,
+                'Topic'            => $topic,
+                'Payload'          => $content,
+            ),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        );
 
         $this->debug(__FUNCTION__, 'SendDataToParent: ' . $packet);
 
