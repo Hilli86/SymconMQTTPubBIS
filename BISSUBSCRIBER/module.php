@@ -19,6 +19,8 @@ class BISSubscriber extends T2DModule
     const DATA_SPLITTER_TX = '{97475B04-67C3-A74D-C970-E9409B0EFA1D}';
     /** MQTT-Splitter -> Gerät (z. B. Schnittcher MQTTClient / kompatible Weiterleitung) */
     const DATA_MQTT_CHILD_RX = '{DBDA9DF7-5D04-F49D-370A-2B9153D00D9B}';
+    /** IP-Symcon integrierter „MQTT Client“ (Gateway), Modultyp-GUID */
+    const PARENT_MODULE_MQTT_CLIENT = '{F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}';
 
     public function __construct($InstanceID)
     {
@@ -29,6 +31,8 @@ class BISSubscriber extends T2DModule
     public function Create()
     {
         parent::Create();
+
+        $this->RequireParent(self::PARENT_MODULE_MQTT_CLIENT);
 
         $this->RegisterPropertyBoolean('Debug', false);
         $this->RegisterPropertyBoolean('Active', false);
