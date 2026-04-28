@@ -1,39 +1,15 @@
 <?
 /**
  * @file
- *
- * MQTT Subscriber (BIS): MQTT-Broker → IPS (Grundgerüst)
+ * MQTT Subscriber (BIS): Symcon MQTT-Splitter -> IPS
  *
  * @author Martin Hilbert
  */
 
 include_once(__DIR__ . "/../lib/module_helper.php");
-include_once(__DIR__ . "/../lib/IPSphpMQTT.php");
 
-/** @class BISSubscriber
- *
- * IPSymcon PHP-Modul: Subscriber-Grundgerüst für BIS
- */
 class BISSubscriber extends T2DModule
 {
-    /**
-     * MQTT QOS constant "At Most once" (Fire and forget)
-     */
-    const MQTT_QOS_0_AT_MOST_ONCE = 0;
-
-    /**
-     * MQTT keepalive in seconds.
-     */
-    const MQTT_KEEPALIVE_SECONDS = 10;
-    const LISTENER_SEMAPHORE_TIMEOUT_MS = 1;
-    const EOF_LOOP_WINDOW_SECONDS = 10;
-    const EOF_LOOP_MAX_IN_WINDOW = 3;
-    const RECONNECT_DELAY_MS = 500;
-
-    /**
-     * Constructor.
-     * @param int $InstanceID
-     */
     public function __construct($InstanceID)
     {
         $json = __DIR__ . "/module.json";
@@ -44,23 +20,14 @@ class BISSubscriber extends T2DModule
     {
         parent::Create();
 
-        $this->RegisterPropertyInteger('Port', 1883);
-        $this->RegisterPropertyString('Host', 'mqttbroker');
-        $this->RegisterPropertyString('ClientID', 'symcon-bis-sub');
-        $this->RegisterPropertyString('User', '');
-        $this->RegisterPropertyString('Password', '');
         $this->RegisterPropertyBoolean('Debug', false);
         $this->RegisterPropertyBoolean('Active', false);
         $this->RegisterPropertyString('SubscribeTopic', 'BIS/IPS/#');
+        $this->RegisterPropertyBoolean('SubscribeOnApply', true);
 
         $this->RegisterMessage(0, self::IPS_KERNELMESSAGE);
 
         IPS_SetName($this->InstanceID, 'BISSubscriber');
-    }
-
-    public function Destroy()
-    {
-        parent::Destroy();
     }
 
     public function ApplyChanges()
@@ -68,11 +35,13 @@ class BISSubscriber extends T2DModule
         $this->RegisterMessage(0, self::IPS_KERNELMESSAGE);
         parent::ApplyChanges();
 
-        if ($this->isActive()) {
-            $this->SetStatus(self::ST_AKTIV);
-        } else {
+        if (!$this->isActive()) {
             $this->SetStatus(self::ST_INACTIV);
+            return;
         }
+
+        $this->SetStatus(self::ST_AKTIV);
+        $this->sendSubscribeToParent();
     }
 
     public function MessageSink($TimeStamp, $SenderID, $Message, $Data)
@@ -81,147 +50,46 @@ class BISSubscriber extends T2DModule
             $this->RegisterMessage(0, self::IPS_KERNELMESSAGE);
             if ($this->isActive()) {
                 $this->SetStatus(self::ST_AKTIV);
+                $this->sendSubscribeToParent();
             }
         }
     }
 
     /**
-     * Start MQTT listening loop.
-     * If $durationSeconds is 0, it will run indefinitely.
+     * Receives data from Symcon parent (MQTT Splitter chain).
+     * The payload format may vary by parent implementation, therefore fields are resolved robustly.
      *
-     * @param int $durationSeconds
-     * @return bool
+     * @param string $JSONString
      */
-    public function Listen(int $durationSeconds = 0): bool
+    public function ReceiveData($JSONString)
     {
         if (!$this->isActive()) {
-            $this->debug(__FUNCTION__, 'Subscriber is inactive');
-            return false;
+            return;
         }
 
-        $semaphoreName = __CLASS__ . '_Listen_' . $this->InstanceID;
-        if (!IPS_SemaphoreEnter($semaphoreName, self::LISTENER_SEMAPHORE_TIMEOUT_MS)) {
-            $this->debug(__FUNCTION__, 'Listen already running (parallel start blocked). This often causes reconnect loops due to duplicate ClientID.');
-            return false;
+        $this->debug(__FUNCTION__, 'Raw JSON: ' . $JSONString);
+        $data = json_decode($JSONString, true);
+        if (!is_array($data)) {
+            $this->debug(__FUNCTION__, 'Invalid JSON payload from parent');
+            return;
         }
 
-        $this->debug(__FUNCTION__, 'Starting listener loop');
-        $this->debug(__FUNCTION__, 'Config Host=' . $this->GetHost() . ' Port=' . $this->GetPort() . ' ClientID=' . $this->GetClientID());
-
-        $mqtt = $this->buildMqttClient();
-        $username = $this->GetUser();
-        $password = $this->GetPassword();
-        $this->debug(__FUNCTION__, 'Credentials User=' . ($username !== '' ? $username : '<leer>') . ' Password=' . ($password !== '' ? '<gesetzt>' : '<leer>'));
-
-        try {
-            $subscribeTopic = $this->normalizeSubscribeTopic($this->GetSubscribeTopic());
-            $topics = array(
-                $subscribeTopic => array(
-                    'qos'      => self::MQTT_QOS_0_AT_MOST_ONCE,
-                    'function' => array($this, 'onMqttMessage')
-                )
-            );
-
-            $started = time();
-            $lastLoopDebug = $started;
-            $loopCounter = 0;
-            $eofEvents = array();
-            $isConnected = false;
-            while (true) {
-                // Listener muss bei deaktivierter Instanz sauber stoppen.
-                if (!$this->isActive()) {
-                    $this->debug(__FUNCTION__, 'Instance set to inactive -> stop listener loop');
-                    break;
-                }
-
-                if (!$isConnected) {
-                    if (!$mqtt->connect(true, null, $username, $password)) {
-                        $this->printMqttDebug($mqtt);
-                        $this->debug(__FUNCTION__, 'Broker connect failed, retry in ' . self::RECONNECT_DELAY_MS . 'ms');
-                        IPS_Sleep(self::RECONNECT_DELAY_MS);
-                        continue;
-                    }
-
-                    $isConnected = true;
-                    $this->debug(__FUNCTION__, 'Broker connection established');
-                    $mqtt->subscribe($topics, self::MQTT_QOS_0_AT_MOST_ONCE);
-                    $this->debug(__FUNCTION__, 'Subscribed to topic ' . $subscribeTopic);
-                    $this->debug(__FUNCTION__, 'Expected command base topic ' . $this->getExpectedCommandBaseTopic());
-                    $this->debug(__FUNCTION__, 'Internal auto-reconnect disabled; reconnect handled by subscriber loop');
-                    $this->printMqttDebug($mqtt);
-                }
-
-                $procResult = $mqtt->proc();
-                $loopCounter++;
-                $stats = $this->printMqttDebug($mqtt);
-
-                if ($procResult === 0) {
-                    $isConnected = false;
-                    $this->debug(__FUNCTION__, 'Connection lost detected by proc(), reconnect controlled by subscriber');
-                    IPS_Sleep(self::RECONNECT_DELAY_MS);
-                    continue;
-                }
-
-                if ($stats['eof'] > 0) {
-                    $now = time();
-                    for ($i = 0; $i < $stats['eof']; $i++) {
-                        $eofEvents[] = $now;
-                    }
-                    $windowStart = $now - self::EOF_LOOP_WINDOW_SECONDS;
-                    $eofEvents = array_values(array_filter($eofEvents, function ($ts) use ($windowStart) {
-                        return $ts >= $windowStart;
-                    }));
-
-                    if (count($eofEvents) >= self::EOF_LOOP_MAX_IN_WINDOW) {
-                        $this->debug(
-                            __FUNCTION__,
-                            'Detected repeated EOF reconnect loop (' . count($eofEvents) . 'x in ' . self::EOF_LOOP_WINDOW_SECONDS . 's) -> stopping listener'
-                        );
-                        IPS_LogMessage(
-                            __CLASS__,
-                            __FUNCTION__ . ':: MQTT EOF-Reconnect-Loop erkannt. Listener gestoppt. Bitte ClientID/Parallelstarts am Broker pruefen.'
-                        );
-                        break;
-                    }
-                }
-
-                // Keepalive/processing visibility while waiting for messages.
-                $now = time();
-                if (($now - $lastLoopDebug) >= 5) {
-                    $this->debug(__FUNCTION__, 'Listener active, loop=' . $loopCounter . ' runtime=' . ($now - $started) . 's');
-                    $lastLoopDebug = $now;
-                }
-
-                if ($durationSeconds > 0 && (time() - $started) >= $durationSeconds) {
-                    $this->debug(__FUNCTION__, 'Duration reached, stopping listener');
-                    break;
-                }
-            }
-
-            $this->printMqttDebug($mqtt);
-            if ($isConnected) {
-                $mqtt->close();
-            }
-            $this->debug(__FUNCTION__, 'Listener stopped, MQTT closed');
-            return true;
-        } finally {
-            IPS_SemaphoreLeave($semaphoreName);
+        $topic = $this->extractTopicFromParentData($data);
+        $payload = $this->extractPayloadFromParentData($data);
+        if ($topic === '') {
+            $this->debug(__FUNCTION__, 'No topic found in parent payload');
+            return;
         }
+
+        $this->onMqttMessage($topic, $payload);
     }
 
-    /**
-     * MQTT callback for incoming messages.
-     *
-     * @param string $topic
-     * @param string $message
-     * @return void
-     */
     public function onMqttMessage(string $topic, string $message): void
     {
         $this->debug(__FUNCTION__, 'Incoming topic: ' . $topic . ' payload: "' . $message . '"');
-        $this->debug(__FUNCTION__, 'Payload length=' . strlen((string)$message));
+        $this->debug(__FUNCTION__, 'Payload length=' . strlen($message));
 
-        $variableId = $this->extractVariableIdFromTopic((string)$topic);
+        $variableId = $this->extractVariableIdFromTopic($topic);
         if ($variableId === null) {
             $this->debug(__FUNCTION__, 'Topic ignored (no valid <id>/set below SubscribeTopic): ' . $topic);
             return;
@@ -294,23 +162,6 @@ class BISSubscriber extends T2DModule
         return null;
     }
 
-    /**
-     * Create MQTT client from instance properties.
-     *
-     * @return IPSphpMQTT
-     */
-    private function buildMqttClient(): IPSphpMQTT
-    {
-        $host = $this->GetHost();
-        $port = $this->GetPort();
-        $clientId = $this->GetClientID();
-
-        $mqtt = new IPSphpMQTT($host, $port, $clientId);
-        $mqtt->keepalive = self::MQTT_KEEPALIVE_SECONDS;
-        $mqtt->autoReconnect = false;
-        return $mqtt;
-    }
-
     private function normalizeSubscribeTopic(string $topic): string
     {
         $topic = trim($topic);
@@ -377,51 +228,69 @@ class BISSubscriber extends T2DModule
         return rtrim($topic, '/');
     }
 
-    private function printMqttDebug(IPSphpMQTT $mqtt): array
+    private function extractTopicFromParentData(array $data): string
     {
-        $stats = array(
-            'eof' => 0
-        );
-
-        if (!is_array($mqtt->debugmsg)) {
-            return $stats;
-        }
-
-        while (count($mqtt->debugmsg) > 0) {
-            $msg = array_shift($mqtt->debugmsg);
-            if (strpos($msg, 'proc::eof receive going to reconnect for good measure') !== false) {
-                $stats['eof']++;
+        $candidates = array('Topic', 'topic', 'TOPIC');
+        foreach ($candidates as $key) {
+            if (isset($data[$key])) {
+                return (string)$data[$key];
             }
-            $this->debug('IPSphpMQTT', $msg);
         }
 
-        return $stats;
+        if (isset($data['Buffer']) && is_string($data['Buffer'])) {
+            $inner = json_decode($data['Buffer'], true);
+            if (is_array($inner)) {
+                foreach ($candidates as $key) {
+                    if (isset($inner[$key])) {
+                        return (string)$inner[$key];
+                    }
+                }
+            }
+        }
+
+        return '';
     }
 
-    private function GetHost(): string
+    private function extractPayloadFromParentData(array $data): string
     {
-        return (string)IPS_GetProperty($this->InstanceID, 'Host');
+        $candidates = array('Payload', 'payload', 'Value', 'value');
+        foreach ($candidates as $key) {
+            if (isset($data[$key])) {
+                return (string)$data[$key];
+            }
+        }
+
+        if (isset($data['Buffer']) && is_string($data['Buffer'])) {
+            $inner = json_decode($data['Buffer'], true);
+            if (is_array($inner)) {
+                foreach ($candidates as $key) {
+                    if (isset($inner[$key])) {
+                        return (string)$inner[$key];
+                    }
+                }
+            }
+            return (string)$data['Buffer'];
+        }
+
+        return '';
     }
 
-    private function GetPort(): int
+    private function sendSubscribeToParent(): void
     {
-        return (int)IPS_GetProperty($this->InstanceID, 'Port');
-    }
+        if (!(bool)IPS_GetProperty($this->InstanceID, 'SubscribeOnApply')) {
+            $this->debug(__FUNCTION__, 'SubscribeOnApply disabled');
+            return;
+        }
 
-    private function GetClientID(): string
-    {
-        $clientId = (string)IPS_GetProperty($this->InstanceID, 'ClientID');
-        return $clientId . '@' . gethostname();
-    }
-
-    private function GetUser(): string
-    {
-        return (string)IPS_GetProperty($this->InstanceID, 'User');
-    }
-
-    private function GetPassword(): string
-    {
-        return (string)IPS_GetProperty($this->InstanceID, 'Password');
+        $topic = $this->normalizeSubscribeTopic($this->GetSubscribeTopic());
+        $payload = array(
+            'Command' => 'Subscribe',
+            'Topic'   => $topic,
+            'QoS'     => 0
+        );
+        $json = json_encode($payload);
+        $this->debug(__FUNCTION__, 'SendDataToParent subscribe: ' . $json);
+        @$this->SendDataToParent($json);
     }
 
     private function GetSubscribeTopic(): string
