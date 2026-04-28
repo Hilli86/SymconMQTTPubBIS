@@ -2,18 +2,39 @@
 	"elements": [
 		{
 			"type": "Label",
-			"label": "Grundgerüst: MQTT-Nachrichten vom Broker empfangen und in IPS verarbeiten (Logik folgt)."
+			"caption": "Als untergeordnete Instanz unter dem Symcon-MQTT-Client (Gateway / Splitter) eintragen. Topic-Filter und Broker-Zugang werden dort konfiguriert."
 		},
-		{ "name": "Active", "type": "CheckBox", "caption": "Instanz aktiv" },
-		{ "type": "Label", "label": "Verbindung" },
-		{ "name": "Host", "type": "ValidationTextBox", "caption": "MQTT-Broker (Host / IP)" },
-		{ "name": "Port", "type": "NumberSpinner", "caption": "MQTT-Port" },
-		{ "name": "User", "type": "ValidationTextBox", "caption": "Benutzername (optional)" },
-		{ "name": "Password", "type": "PasswordTextBox", "caption": "Passwort (optional)" },
-		{ "name": "ClientID", "type": "ValidationTextBox", "caption": "MQTT-Client-ID (Basis, Hostname wird angehängt)" },
-		{ "type": "Label", "label": "Abonnement" },
-		{ "name": "SubscribeTopic", "type": "ValidationTextBox", "caption": "MQTT-Topic zum Abonnieren (Platzhalter folgen)" },
-		{ "type": "Label", "label": "Protokollierung" },
-		{ "name": "Debug", "type": "CheckBox", "caption": "Debug-Ausgaben (IPS-Log)" }
+		{
+			"type": "CheckBox",
+			"name": "Active",
+			"caption": "Aktiv"
+		},
+		{
+			"type": "CheckBox",
+			"name": "Debug",
+			"caption": "Debug-Ausgaben"
+		},
+		{
+			"type": "ValidationTextBox",
+			"name": "SubscribeTopic",
+			"caption": "Subscribe-Topic (MQTT-Filter)"
+		},
+		{
+			"type": "CheckBox",
+			"name": "SubscribeOnApply",
+			"caption": "Beim Übernehmen automatisch beim Gateway abonnieren (empfohlen)"
+		}
+	],
+	"status": [
+		{
+			"code": 102,
+			"icon": "active",
+			"caption": "Aktiv"
+		},
+		{
+			"code": 104,
+			"icon": "inactive",
+			"caption": "Inaktiv"
+		}
 	]
 }
