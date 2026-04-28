@@ -308,7 +308,8 @@ class IPSphpMQTT {
         $buffer .= chr($id % 256);  $i++;
 
         foreach($topics as $key => $topic){
-            $this->debugtxt(__FUNCTION__, "subscribe topic:$topic");
+            $topicQos = isset($topic["qos"]) ? $topic["qos"] : 'n/a';
+            $this->debugtxt(__FUNCTION__, "subscribe topic:$key qos:$topicQos");
             $buffer .= $this->strwritestring($key,$i);
             $buffer .= chr($topic["qos"]);  $i++;
             $this->topics[$key] = $topic;

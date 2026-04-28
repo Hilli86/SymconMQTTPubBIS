@@ -201,7 +201,7 @@ class BISSubscriber extends T2DModule
      * @param string $message
      * @return void
      */
-    public function onMqttMessage($topic, $message)
+    public function onMqttMessage(string $topic, string $message): void
     {
         $this->debug(__FUNCTION__, 'Incoming topic: ' . $topic . ' payload: "' . $message . '"');
         $this->debug(__FUNCTION__, 'Payload length=' . strlen((string)$message));
