@@ -26,6 +26,8 @@ class BISSubscriber extends T2DModule
      */
     const MQTT_KEEPALIVE_SECONDS = 10;
     const LISTENER_SEMAPHORE_TIMEOUT_MS = 1;
+    const EOF_LOOP_WINDOW_SECONDS = 10;
+    const EOF_LOOP_MAX_IN_WINDOW = 3;
 
     /**
      * Constructor.
@@ -135,15 +137,45 @@ class BISSubscriber extends T2DModule
             $started = time();
             $lastLoopDebug = $started;
             $loopCounter = 0;
+            $eofEvents = array();
             while (true) {
+                // Listener muss bei deaktivierter Instanz sauber stoppen.
+                if (!$this->isActive()) {
+                    $this->debug(__FUNCTION__, 'Instance set to inactive -> stop listener loop');
+                    break;
+                }
+
                 $mqtt->proc();
                 $loopCounter++;
+                $stats = $this->printMqttDebug($mqtt);
+
+                if ($stats['eof'] > 0) {
+                    $now = time();
+                    for ($i = 0; $i < $stats['eof']; $i++) {
+                        $eofEvents[] = $now;
+                    }
+                    $windowStart = $now - self::EOF_LOOP_WINDOW_SECONDS;
+                    $eofEvents = array_values(array_filter($eofEvents, function ($ts) use ($windowStart) {
+                        return $ts >= $windowStart;
+                    }));
+
+                    if (count($eofEvents) >= self::EOF_LOOP_MAX_IN_WINDOW) {
+                        $this->debug(
+                            __FUNCTION__,
+                            'Detected repeated EOF reconnect loop (' . count($eofEvents) . 'x in ' . self::EOF_LOOP_WINDOW_SECONDS . 's) -> stopping listener'
+                        );
+                        IPS_LogMessage(
+                            __CLASS__,
+                            __FUNCTION__ . ':: MQTT EOF-Reconnect-Loop erkannt. Listener gestoppt. Bitte ClientID/Parallelstarts am Broker pruefen.'
+                        );
+                        break;
+                    }
+                }
 
                 // Keepalive/processing visibility while waiting for messages.
                 $now = time();
                 if (($now - $lastLoopDebug) >= 5) {
                     $this->debug(__FUNCTION__, 'Listener active, loop=' . $loopCounter . ' runtime=' . ($now - $started) . 's');
-                    $this->printMqttDebug($mqtt);
                     $lastLoopDebug = $now;
                 }
 
@@ -329,16 +361,25 @@ class BISSubscriber extends T2DModule
         return rtrim($topic, '/');
     }
 
-    private function printMqttDebug(IPSphpMQTT $mqtt): void
+    private function printMqttDebug(IPSphpMQTT $mqtt): array
     {
+        $stats = array(
+            'eof' => 0
+        );
+
         if (!is_array($mqtt->debugmsg)) {
-            return;
+            return $stats;
         }
 
         while (count($mqtt->debugmsg) > 0) {
             $msg = array_shift($mqtt->debugmsg);
+            if (strpos($msg, 'proc::eof receive going to reconnect for good measure') !== false) {
+                $stats['eof']++;
+            }
             $this->debug('IPSphpMQTT', $msg);
         }
+
+        return $stats;
     }
 
     private function GetHost(): string
