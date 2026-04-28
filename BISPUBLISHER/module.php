@@ -74,7 +74,7 @@ class BISPublisher extends T2DModule
         //props
         $this->RegisterPropertyInteger('Port', 1883);
         $this->RegisterPropertyString('Host', 'mqttbroker');
-        $this->RegisterPropertyString('Topic', 'bis/IPS/%varid%/%varident%/%path%');
+        $this->RegisterPropertyString('Topic', 'BIS/IPS/%varid%/%varident%/%path%');
         $this->RegisterPropertyString('ClientID', 'symcon-bis');
         $this->RegisterPropertyString('LogFile', '');
         $this->RegisterPropertyString('User', '');
