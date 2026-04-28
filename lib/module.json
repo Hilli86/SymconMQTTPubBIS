@@ -1,0 +1,11 @@
+{
+	"id": "{B0A40B26-FDD1-4A2D-BE27-7E11C73D7FC2}",
+	"name": "BISInternalLib",
+	"type": 3,
+	"vendor": "Martin Hilbert",
+	"aliases": ["BIS Internal Library (nicht verwenden)"],
+	"parentRequirements": [],
+	"childRequirements": [],
+	"implemented": [],
+	"prefix": "BISLIB"
+}

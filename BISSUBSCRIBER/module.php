@@ -28,6 +28,7 @@ class BISSubscriber extends T2DModule
     const LISTENER_SEMAPHORE_TIMEOUT_MS = 1;
     const EOF_LOOP_WINDOW_SECONDS = 10;
     const EOF_LOOP_MAX_IN_WINDOW = 3;
+    const RECONNECT_DELAY_MS = 500;
 
     /**
      * Constructor.
@@ -113,14 +114,6 @@ class BISSubscriber extends T2DModule
         $this->debug(__FUNCTION__, 'Credentials User=' . ($username !== '' ? $username : '<leer>') . ' Password=' . ($password !== '' ? '<gesetzt>' : '<leer>'));
 
         try {
-            if (!$mqtt->connect(true, null, $username, $password)) {
-                $this->printMqttDebug($mqtt);
-                IPS_LogMessage(__CLASS__, __FUNCTION__ . ':: Verbindung zum Broker fehlgeschlagen');
-                return false;
-            }
-            $this->debug(__FUNCTION__, 'Broker connection established');
-            $this->printMqttDebug($mqtt);
-
             $subscribeTopic = $this->normalizeSubscribeTopic($this->GetSubscribeTopic());
             $topics = array(
                 $subscribeTopic => array(
@@ -128,16 +121,12 @@ class BISSubscriber extends T2DModule
                     'function' => array($this, 'onMqttMessage')
                 )
             );
-            $mqtt->subscribe($topics, self::MQTT_QOS_0_AT_MOST_ONCE);
-            $this->debug(__FUNCTION__, 'Subscribed to topic ' . $subscribeTopic);
-            $this->debug(__FUNCTION__, 'Expected command base topic ' . $this->getExpectedCommandBaseTopic());
-            $this->debug(__FUNCTION__, 'Note: If you see immediate EOF reconnects, check for duplicate listener starts or duplicate ClientID usage.');
-            $this->printMqttDebug($mqtt);
 
             $started = time();
             $lastLoopDebug = $started;
             $loopCounter = 0;
             $eofEvents = array();
+            $isConnected = false;
             while (true) {
                 // Listener muss bei deaktivierter Instanz sauber stoppen.
                 if (!$this->isActive()) {
@@ -145,9 +134,33 @@ class BISSubscriber extends T2DModule
                     break;
                 }
 
-                $mqtt->proc();
+                if (!$isConnected) {
+                    if (!$mqtt->connect(true, null, $username, $password)) {
+                        $this->printMqttDebug($mqtt);
+                        $this->debug(__FUNCTION__, 'Broker connect failed, retry in ' . self::RECONNECT_DELAY_MS . 'ms');
+                        IPS_Sleep(self::RECONNECT_DELAY_MS);
+                        continue;
+                    }
+
+                    $isConnected = true;
+                    $this->debug(__FUNCTION__, 'Broker connection established');
+                    $mqtt->subscribe($topics, self::MQTT_QOS_0_AT_MOST_ONCE);
+                    $this->debug(__FUNCTION__, 'Subscribed to topic ' . $subscribeTopic);
+                    $this->debug(__FUNCTION__, 'Expected command base topic ' . $this->getExpectedCommandBaseTopic());
+                    $this->debug(__FUNCTION__, 'Internal auto-reconnect disabled; reconnect handled by subscriber loop');
+                    $this->printMqttDebug($mqtt);
+                }
+
+                $procResult = $mqtt->proc();
                 $loopCounter++;
                 $stats = $this->printMqttDebug($mqtt);
+
+                if ($procResult === 0) {
+                    $isConnected = false;
+                    $this->debug(__FUNCTION__, 'Connection lost detected by proc(), reconnect controlled by subscriber');
+                    IPS_Sleep(self::RECONNECT_DELAY_MS);
+                    continue;
+                }
 
                 if ($stats['eof'] > 0) {
                     $now = time();
@@ -186,7 +199,9 @@ class BISSubscriber extends T2DModule
             }
 
             $this->printMqttDebug($mqtt);
-            $mqtt->close();
+            if ($isConnected) {
+                $mqtt->close();
+            }
             $this->debug(__FUNCTION__, 'Listener stopped, MQTT closed');
             return true;
         } finally {
@@ -292,6 +307,7 @@ class BISSubscriber extends T2DModule
 
         $mqtt = new IPSphpMQTT($host, $port, $clientId);
         $mqtt->keepalive = self::MQTT_KEEPALIVE_SECONDS;
+        $mqtt->autoReconnect = false;
         return $mqtt;
     }
 

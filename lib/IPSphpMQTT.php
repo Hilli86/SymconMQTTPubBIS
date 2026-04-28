@@ -80,6 +80,11 @@ class IPSphpMQTT {
      */
     public $debug = false;
     /**
+     * automatic reconnect handling inside proc()
+     * @var bool $autoReconnect
+     */
+    public $autoReconnect = true;
+    /**
      * broker address
      * @var string $address
      */
@@ -445,12 +450,17 @@ class IPSphpMQTT {
 
             //$byte = fgetc($this->socket);
             if(feof($this->socket)){
-
-                $this->debugtxt(__FUNCTION__, "eof receive going to reconnect for good measure");
-                fclose($this->socket);
-                $this->connect_auto(false);
-                if(count($this->topics))
-                    $this->subscribe($this->topics);
+                $this->debugtxt(__FUNCTION__, "eof receive");
+                if ($this->autoReconnect) {
+                    $this->debugtxt(__FUNCTION__, "going to reconnect for good measure");
+                    fclose($this->socket);
+                    $this->connect_auto(false);
+                    if(count($this->topics))
+                        $this->subscribe($this->topics);
+                } else {
+                    $this->debugtxt(__FUNCTION__, "auto reconnect disabled");
+                    return 0;
+                }
             }
 
             $byte = $this->read(1, true);
@@ -494,10 +504,15 @@ class IPSphpMQTT {
 
             if($this->timesinceping<(time()-($this->keepalive*2))){
                 $this->debugtxt(__FUNCTION__, "not seen a package in a while, disconnecting");
-                fclose($this->socket);
-                $this->connect_auto(false);
-                if(count($this->topics))
-                    $this->subscribe($this->topics);
+                if ($this->autoReconnect) {
+                    fclose($this->socket);
+                    $this->connect_auto(false);
+                    if(count($this->topics))
+                        $this->subscribe($this->topics);
+                } else {
+                    $this->debugtxt(__FUNCTION__, "auto reconnect disabled");
+                    return 0;
+                }
             }
 
         }
