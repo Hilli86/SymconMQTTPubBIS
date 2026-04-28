@@ -2,7 +2,7 @@
 	"elements": [
 		{
 			"type": "Label",
-			"caption": "Als Kind unter die Symcon-Instanz „MQTT Client“ hängen (Modul-GUID {F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}). Topic-Filter und Broker dort konfigurieren."
+			"caption": "Im Objektbaum unter „MQTT Client“ einhängen (Modul {F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}). Broker und Abos dort; diese Instanz nur per Verbindung koppeln."
 		},
 		{
 			"type": "CheckBox",
