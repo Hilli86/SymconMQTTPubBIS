@@ -670,6 +670,10 @@ class BISPublisher extends IPSModule
 
 
 
+    /**
+     * Parent (MQTT Client) wertet in ForwardData nur JSON mit "Buffer" aus:
+     * utf8_decode(Buffer) -> JSON mit Function Publish, Topic, Payload, Retain.
+     */
     private function mqtt_publish_via_parent(string $topic, string $content, $objectID)
 
     {
@@ -688,26 +692,22 @@ class BISPublisher extends IPSModule
 
 
 
-        $packet = json_encode(
-
+        $inner = json_encode(
             array(
-
-                'DataID'   => self::DATA_MQTT_CLIENT_TX_TO_PARENT,
-
                 'Function' => 'Publish',
-
                 'Topic'    => $topic,
-
                 'Payload'  => $content,
-
-                'QoS'      => $this->qos,
-
-                'Retain'   => $this->retained,
-
+                'Retain'   => $this->retained ? true : false,
             ),
-
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        );
 
+        $packet = json_encode(
+            array(
+                'DataID' => self::DATA_MQTT_CLIENT_TX_TO_PARENT,
+                'Buffer' => utf8_encode($inner),
+            ),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
         );
 
         $this->debug(__FUNCTION__, 'SendDataToParent: ' . $packet);
