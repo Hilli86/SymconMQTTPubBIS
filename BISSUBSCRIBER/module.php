@@ -3,30 +3,25 @@
  * @file
  * MQTT Subscriber (BIS): Symcon-MQTT-Gateway (Splitter) -> IPS
  *
- * Als Geräte-Instanz unter den integrierten MQTT-Client von Symcon (oder kompatible
- * Splitter mit gleichem Datenfluss) hängen.
+ * Nur IP-Symcon-Basisklasse IPSModule (ohne externes module_helper).
  *
  * @author Martin Hilbert
  */
-
-include_once(__DIR__ . "/../lib/module_helper.php");
-
-class BISSubscriber extends T2DModule
+class BISSubscriber extends IPSModule
 {
-    /** Simple RX (vom Parent zu Kind, typisch I/O / Splitter-Kette) */
-    const DATA_SIMPLE_RX = '{018EF6B5-AB94-40C6-AA53-46943E824ACF}';
+    const IPS_KERNELMESSAGE = 10100;
+    const KR_READY = 10103;
+
+    const ST_AKTIV = 102;
+    const ST_INACTIV = 104;
+    const ST_NOPARENT = 202;
+
     /** TX zum Parent (z. B. Subscribe-Befehl an MQTT-Splitter) */
     const DATA_SPLITTER_TX = '{97475B04-67C3-A74D-C970-E9409B0EFA1D}';
-    /** MQTT-Splitter -> Gerät (z. B. Schnittcher MQTTClient / kompatible Weiterleitung) */
+    /** MQTT-Splitter -> Gerät (z. B. kompatible Weiterleitung) */
     const DATA_MQTT_CHILD_RX = '{DBDA9DF7-5D04-F49D-370A-2B9153D00D9B}';
     /** IP-Symcon integrierter „MQTT Client“ (Gateway), Modultyp-GUID */
     const PARENT_MODULE_MQTT_CLIENT = '{F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}';
-
-    public function __construct($InstanceID)
-    {
-        $json = __DIR__ . "/module.json";
-        parent::__construct($InstanceID, $json);
-    }
 
     public function Create()
     {
@@ -54,14 +49,14 @@ class BISSubscriber extends T2DModule
         $this->RegisterMessage(0, self::IPS_KERNELMESSAGE);
         parent::ApplyChanges();
 
-        if (!$this->isActive()) {
+        if (!$this->isModuleActive()) {
             $this->SetStatus(self::ST_INACTIV);
             return;
         }
 
-        if (!$this->HasActiveParent()) {
+        if (!$this->hasActiveParentConnection()) {
             $this->SetStatus(self::ST_NOPARENT);
-            $this->debug(__FUNCTION__, 'Kein aktiver Parent (MQTT-Gateway). Verbindung im Objektbaum setzen.');
+            $this->moduleDebug(__FUNCTION__, 'Kein aktiver Parent (MQTT-Gateway). Verbindung im Objektbaum setzen.');
             return;
         }
 
@@ -73,7 +68,7 @@ class BISSubscriber extends T2DModule
     {
         if ($Message == self::IPS_KERNELMESSAGE && isset($Data[0]) && $Data[0] == self::KR_READY) {
             $this->RegisterMessage(0, self::IPS_KERNELMESSAGE);
-            if ($this->isActive() && $this->HasActiveParent()) {
+            if ($this->isModuleActive() && $this->hasActiveParentConnection()) {
                 $this->SetStatus(self::ST_AKTIV);
                 $this->sendSubscribeToParent();
             }
@@ -81,21 +76,18 @@ class BISSubscriber extends T2DModule
     }
 
     /**
-     * Daten vom übergeordneten MQTT-Gateway (Splitter).
-     *
      * @param string $JSONString
-     * @return void
      */
     public function ReceiveData($JSONString)
     {
-        if (!$this->isActive()) {
+        if (!$this->isModuleActive()) {
             return;
         }
 
-        $this->debug(__FUNCTION__, 'Raw JSON: ' . $JSONString);
+        $this->moduleDebug(__FUNCTION__, 'Raw JSON: ' . $JSONString);
         $data = json_decode($JSONString, true);
         if (!is_array($data)) {
-            $this->debug(__FUNCTION__, 'Ungültiges JSON vom Parent');
+            $this->moduleDebug(__FUNCTION__, 'Ungültiges JSON vom Parent');
             return;
         }
 
@@ -105,7 +97,7 @@ class BISSubscriber extends T2DModule
         $topic = $this->extractTopicFromPayload($inner);
         $payload = $this->extractPayloadStringFromPayload($inner);
         if ($topic === '') {
-            $this->debug(__FUNCTION__, 'Kein Topic ermittelbar (DataID=' . $dataId . ')');
+            $this->moduleDebug(__FUNCTION__, 'Kein Topic ermittelbar (DataID=' . $dataId . ')');
             return;
         }
 
@@ -114,52 +106,84 @@ class BISSubscriber extends T2DModule
 
     public function onMqttMessage(string $topic, string $message): void
     {
-        $this->debug(__FUNCTION__, 'Incoming topic: ' . $topic . ' payload: "' . $message . '"');
-        $this->debug(__FUNCTION__, 'Payload length=' . strlen($message));
+        $this->moduleDebug(__FUNCTION__, 'Incoming topic: ' . $topic . ' payload: "' . $message . '"');
+        $this->moduleDebug(__FUNCTION__, 'Payload length=' . strlen($message));
 
         $variableId = $this->extractVariableIdFromTopic($topic);
         if ($variableId === null) {
-            $this->debug(__FUNCTION__, 'Topic ignoriert (kein gültiges <id>/set zum SubscribeTopic): ' . $topic);
+            $this->moduleDebug(__FUNCTION__, 'Topic ignoriert (kein gültiges <id>/set zum SubscribeTopic): ' . $topic);
             return;
         }
-        $this->debug(__FUNCTION__, 'Variable id=' . $variableId);
+        $this->moduleDebug(__FUNCTION__, 'Variable id=' . $variableId);
 
         $targetValue = $this->parseBooleanPayload($message);
         if ($targetValue === null) {
-            $this->debug(__FUNCTION__, 'Payload ignoriert (erwartet 0|1): ' . $message);
+            $this->moduleDebug(__FUNCTION__, 'Payload ignoriert (erwartet 0|1): ' . $message);
             return;
         }
-        $this->debug(__FUNCTION__, 'Zielwert=' . ($targetValue ? '1' : '0'));
+        $this->moduleDebug(__FUNCTION__, 'Zielwert=' . ($targetValue ? '1' : '0'));
 
         $this->setVariableToBoolean($variableId, $targetValue);
     }
 
+    private function isModuleActive(): bool
+    {
+        return (bool)IPS_GetProperty($this->InstanceID, 'Active');
+    }
+
+    private function hasActiveParentConnection(): bool
+    {
+        if (!IPS_InstanceExists($this->InstanceID)) {
+            return false;
+        }
+        $parentId = IPS_GetInstance($this->InstanceID)['ConnectionID'];
+        if ($parentId <= 0 || !IPS_InstanceExists($parentId)) {
+            return false;
+        }
+        return IPS_GetInstance($parentId)['InstanceStatus'] === self::ST_AKTIV;
+    }
+
+    /**
+     * Debug nur bei Property „Debug“, über Symcon SendDebug oder Logmeldung.
+     */
+    private function moduleDebug(string $context, string $message): void
+    {
+        if (!(bool)IPS_GetProperty($this->InstanceID, 'Debug')) {
+            return;
+        }
+        if (method_exists($this, 'SendDebug')) {
+            $this->SendDebug($context, $message, 0);
+            return;
+        }
+        IPS_LogMessage('BISSubscriber::' . $context, $message);
+    }
+
     private function setVariableToBoolean(int $variableId, bool $targetValue): void
     {
-        $this->debug(__FUNCTION__, 'Schalten ID ' . $variableId . ' -> ' . ($targetValue ? '1' : '0'));
+        $this->moduleDebug(__FUNCTION__, 'Schalten ID ' . $variableId . ' -> ' . ($targetValue ? '1' : '0'));
 
         if (!IPS_VariableExists($variableId)) {
             IPS_LogMessage(__CLASS__, __FUNCTION__ . ":: Variable $variableId existiert nicht");
-            $this->debug(__FUNCTION__, "Variable $variableId existiert nicht");
+            $this->moduleDebug(__FUNCTION__, "Variable $variableId existiert nicht");
             return;
         }
 
         $valueForIps = $targetValue ? 1 : 0;
 
-        $this->debug(__FUNCTION__, 'RequestAction');
+        $this->moduleDebug(__FUNCTION__, 'RequestAction');
         if (@RequestAction($variableId, $valueForIps)) {
-            $this->debug(__FUNCTION__, "RequestAction OK: ID $variableId -> $valueForIps");
+            $this->moduleDebug(__FUNCTION__, "RequestAction OK: ID $variableId -> $valueForIps");
             return;
         }
-        $this->debug(__FUNCTION__, "RequestAction fehlgeschlagen für ID $variableId");
+        $this->moduleDebug(__FUNCTION__, "RequestAction fehlgeschlagen für ID $variableId");
 
-        $this->debug(__FUNCTION__, 'SetValue Fallback');
+        $this->moduleDebug(__FUNCTION__, 'SetValue Fallback');
         if (@SetValue($variableId, $valueForIps)) {
-            $this->debug(__FUNCTION__, "SetValue OK: ID $variableId -> $valueForIps");
+            $this->moduleDebug(__FUNCTION__, "SetValue OK: ID $variableId -> $valueForIps");
             return;
         }
 
-        $this->debug(__FUNCTION__, "SetValue fehlgeschlagen für ID $variableId");
+        $this->moduleDebug(__FUNCTION__, "SetValue fehlgeschlagen für ID $variableId");
         IPS_LogMessage(__CLASS__, __FUNCTION__ . ":: Schalten fehlgeschlagen: ID $variableId -> $valueForIps");
     }
 
@@ -177,8 +201,6 @@ class BISSubscriber extends T2DModule
 
     private function normalizePayloadArray(array $data, string $dataId): array
     {
-        $inner = array();
-
         if (!isset($data['Buffer'])) {
             return $data;
         }
@@ -239,18 +261,18 @@ class BISSubscriber extends T2DModule
     private function extractVariableIdFromTopic(string $topic): ?int
     {
         $normalizedTopic = trim($topic, " \t\n\r\0\x0B/");
-        $this->debug(__FUNCTION__, 'Normalized topic=' . $normalizedTopic);
+        $this->moduleDebug(__FUNCTION__, 'Normalized topic=' . $normalizedTopic);
         if (!preg_match('#^(.+)/(\d+)/set$#', $normalizedTopic, $matches)) {
             return null;
         }
 
         $incomingBase = $matches[1];
         $variableId = (int)$matches[2];
-        $this->debug(__FUNCTION__, 'Base=' . $incomingBase . ' id=' . $variableId);
+        $this->moduleDebug(__FUNCTION__, 'Base=' . $incomingBase . ' id=' . $variableId);
 
         $expectedBase = $this->getExpectedCommandBaseTopic();
         if ($expectedBase !== '' && $incomingBase !== $expectedBase) {
-            $this->debug(__FUNCTION__, 'Base passt nicht, ignoriert');
+            $this->moduleDebug(__FUNCTION__, 'Base passt nicht, ignoriert');
             return null;
         }
 
@@ -259,7 +281,7 @@ class BISSubscriber extends T2DModule
 
     private function getExpectedCommandBaseTopic(): string
     {
-        $topic = $this->normalizeSubscribeTopic($this->GetSubscribeTopic());
+        $topic = $this->normalizeSubscribeTopic($this->getSubscribeTopicProperty());
         $topic = trim($topic, " \t\n\r\0\x0B/");
 
         if (substr($topic, -2) === '/#') {
@@ -279,17 +301,17 @@ class BISSubscriber extends T2DModule
 
     private function sendSubscribeToParent(): void
     {
-        if (!$this->HasActiveParent()) {
-            $this->debug(__FUNCTION__, 'Kein Parent – Subscribe übersprungen');
+        if (!$this->hasActiveParentConnection()) {
+            $this->moduleDebug(__FUNCTION__, 'Kein Parent – Subscribe übersprungen');
             return;
         }
 
         if (!(bool)IPS_GetProperty($this->InstanceID, 'SubscribeOnApply')) {
-            $this->debug(__FUNCTION__, 'SubscribeOnApply aus');
+            $this->moduleDebug(__FUNCTION__, 'SubscribeOnApply aus');
             return;
         }
 
-        $topic = $this->normalizeSubscribeTopic($this->GetSubscribeTopic());
+        $topic = $this->normalizeSubscribeTopic($this->getSubscribeTopicProperty());
 
         $body = array(
             'Function' => 'Subscribe',
@@ -300,11 +322,11 @@ class BISSubscriber extends T2DModule
             'DataID' => self::DATA_SPLITTER_TX,
             'Buffer' => utf8_encode($inner),
         ), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $this->debug(__FUNCTION__, 'SendDataToParent: ' . $packet);
+        $this->moduleDebug(__FUNCTION__, 'SendDataToParent: ' . $packet);
         @$this->SendDataToParent($packet);
     }
 
-    private function GetSubscribeTopic(): string
+    private function getSubscribeTopicProperty(): string
     {
         return (string)IPS_GetProperty($this->InstanceID, 'SubscribeTopic');
     }
