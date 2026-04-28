@@ -47,7 +47,7 @@ class BISSubscriber extends T2DModule
         $this->RegisterPropertyString('Password', '');
         $this->RegisterPropertyBoolean('Debug', false);
         $this->RegisterPropertyBoolean('Active', false);
-        $this->RegisterPropertyString('SubscribeTopic', '/BIS/IPS/+/set');
+        $this->RegisterPropertyString('SubscribeTopic', 'BIS/IPS/#');
 
         $this->RegisterMessage(0, self::IPS_KERNELMESSAGE);
 
@@ -137,13 +137,12 @@ class BISSubscriber extends T2DModule
     {
         $this->debug(__FUNCTION__, 'Incoming topic: ' . $topic . ' payload: ' . $message);
 
-        $topicRegex = '#^/?BIS/IPS/(\d+)/set$#';
-        if (!preg_match($topicRegex, $topic, $matches)) {
-            $this->debug(__FUNCTION__, 'Topic ignored (no match): ' . $topic);
+        $variableId = $this->extractVariableIdFromTopic((string)$topic);
+        if ($variableId === null) {
+            $this->debug(__FUNCTION__, 'Topic ignored (no valid <id>/set below SubscribeTopic): ' . $topic);
             return;
         }
 
-        $variableId = (int)$matches[1];
         $targetValue = $this->parseBooleanPayload($message);
         if ($targetValue === null) {
             $this->debug(__FUNCTION__, 'Payload ignored (expected 0|1): ' . $message);
@@ -222,9 +221,61 @@ class BISSubscriber extends T2DModule
     {
         $topic = trim($topic);
         if ($topic === '') {
-            return 'BIS/IPS/+/set';
+            return 'BIS/IPS/#';
         }
         return ltrim($topic, '/');
+    }
+
+    /**
+     * Extract variable id from "<base>/<id>/set", where <base> comes from SubscribeTopic.
+     *
+     * @param string $topic
+     * @return int|null
+     */
+    private function extractVariableIdFromTopic(string $topic): ?int
+    {
+        $normalizedTopic = trim($topic, " \t\n\r\0\x0B/");
+        if (!preg_match('#^(.+)/(\d+)/set$#', $normalizedTopic, $matches)) {
+            return null;
+        }
+
+        $incomingBase = $matches[1];
+        $variableId = (int)$matches[2];
+
+        $expectedBase = $this->getExpectedCommandBaseTopic();
+        if ($expectedBase !== '' && $incomingBase !== $expectedBase) {
+            return null;
+        }
+
+        return $variableId;
+    }
+
+    /**
+     * Convert configured SubscribeTopic into base command path.
+     * Examples:
+     * - "IPS/BM/Beleuchtung/#" -> "IPS/BM/Beleuchtung"
+     * - "BIS/IPS/+/set" -> "BIS/IPS"
+     *
+     * @return string
+     */
+    private function getExpectedCommandBaseTopic(): string
+    {
+        $topic = $this->normalizeSubscribeTopic($this->GetSubscribeTopic());
+        $topic = trim($topic, " \t\n\r\0\x0B/");
+
+        if (substr($topic, -2) === '/#') {
+            return substr($topic, 0, -2);
+        }
+
+        if (substr($topic, -6) === '/+/set') {
+            return substr($topic, 0, -6);
+        }
+
+        if (substr($topic, -2) === '/+') {
+            return substr($topic, 0, -2);
+        }
+
+        return rtrim($topic, '/');
     }
 
     private function GetHost(): string
