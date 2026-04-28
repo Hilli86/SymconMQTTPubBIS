@@ -95,14 +95,21 @@ class BISSubscriber extends T2DModule
             return false;
         }
 
+        $this->debug(__FUNCTION__, 'Starting listener loop');
+        $this->debug(__FUNCTION__, 'Config Host=' . $this->GetHost() . ' Port=' . $this->GetPort() . ' ClientID=' . $this->GetClientID());
+
         $mqtt = $this->buildMqttClient();
         $username = $this->GetUser();
         $password = $this->GetPassword();
+        $this->debug(__FUNCTION__, 'Credentials User=' . ($username !== '' ? $username : '<leer>') . ' Password=' . ($password !== '' ? '<gesetzt>' : '<leer>'));
 
         if (!$mqtt->connect(true, null, $username, $password)) {
+            $this->printMqttDebug($mqtt);
             IPS_LogMessage(__CLASS__, __FUNCTION__ . ':: Verbindung zum Broker fehlgeschlagen');
             return false;
         }
+        $this->debug(__FUNCTION__, 'Broker connection established');
+        $this->printMqttDebug($mqtt);
 
         $subscribeTopic = $this->normalizeSubscribeTopic($this->GetSubscribeTopic());
         $topics = array(
@@ -113,16 +120,33 @@ class BISSubscriber extends T2DModule
         );
         $mqtt->subscribe($topics, self::MQTT_QOS_0_AT_MOST_ONCE);
         $this->debug(__FUNCTION__, 'Subscribed to topic ' . $subscribeTopic);
+        $this->debug(__FUNCTION__, 'Expected command base topic ' . $this->getExpectedCommandBaseTopic());
+        $this->printMqttDebug($mqtt);
 
         $started = time();
+        $lastLoopDebug = $started;
+        $loopCounter = 0;
         while (true) {
             $mqtt->proc();
+            $loopCounter++;
+
+            // Keepalive/processing visibility while waiting for messages.
+            $now = time();
+            if (($now - $lastLoopDebug) >= 5) {
+                $this->debug(__FUNCTION__, 'Listener active, loop=' . $loopCounter . ' runtime=' . ($now - $started) . 's');
+                $this->printMqttDebug($mqtt);
+                $lastLoopDebug = $now;
+            }
+
             if ($durationSeconds > 0 && (time() - $started) >= $durationSeconds) {
+                $this->debug(__FUNCTION__, 'Duration reached, stopping listener');
                 break;
             }
         }
 
+        $this->printMqttDebug($mqtt);
         $mqtt->close();
+        $this->debug(__FUNCTION__, 'Listener stopped, MQTT closed');
         return true;
     }
 
@@ -135,19 +159,22 @@ class BISSubscriber extends T2DModule
      */
     public function onMqttMessage($topic, $message)
     {
-        $this->debug(__FUNCTION__, 'Incoming topic: ' . $topic . ' payload: ' . $message);
+        $this->debug(__FUNCTION__, 'Incoming topic: ' . $topic . ' payload: "' . $message . '"');
+        $this->debug(__FUNCTION__, 'Payload length=' . strlen((string)$message));
 
         $variableId = $this->extractVariableIdFromTopic((string)$topic);
         if ($variableId === null) {
             $this->debug(__FUNCTION__, 'Topic ignored (no valid <id>/set below SubscribeTopic): ' . $topic);
             return;
         }
+        $this->debug(__FUNCTION__, 'Resolved variable id=' . $variableId);
 
         $targetValue = $this->parseBooleanPayload($message);
         if ($targetValue === null) {
             $this->debug(__FUNCTION__, 'Payload ignored (expected 0|1): ' . $message);
             return;
         }
+        $this->debug(__FUNCTION__, 'Resolved target value=' . ($targetValue ? '1' : '0'));
 
         $this->setVariableToBoolean($variableId, $targetValue);
     }
@@ -161,25 +188,32 @@ class BISSubscriber extends T2DModule
      */
     private function setVariableToBoolean(int $variableId, bool $targetValue): void
     {
+        $this->debug(__FUNCTION__, 'Switch requested for ID ' . $variableId . ' -> ' . ($targetValue ? '1' : '0'));
+
         if (!IPS_VariableExists($variableId)) {
             IPS_LogMessage(__CLASS__, __FUNCTION__ . ":: Variable $variableId existiert nicht");
+            $this->debug(__FUNCTION__, "Variable $variableId does not exist");
             return;
         }
 
         $valueForIps = $targetValue ? 1 : 0;
 
         // Bevorzugt RequestAction, damit zugeordnete Instanz-Logik (z.B. Aktor) ausgeführt wird.
+        $this->debug(__FUNCTION__, 'Trying RequestAction');
         if (@RequestAction($variableId, $valueForIps)) {
             $this->debug(__FUNCTION__, "RequestAction erfolgreich: ID $variableId -> $valueForIps");
             return;
         }
+        $this->debug(__FUNCTION__, "RequestAction failed for ID $variableId");
 
         // Fallback: direkt die Variable setzen (falls kein RequestAction verfügbar ist).
+        $this->debug(__FUNCTION__, 'Trying SetValue fallback');
         if (@SetValue($variableId, $valueForIps)) {
             $this->debug(__FUNCTION__, "SetValue erfolgreich: ID $variableId -> $valueForIps");
             return;
         }
 
+        $this->debug(__FUNCTION__, "SetValue failed for ID $variableId");
         IPS_LogMessage(__CLASS__, __FUNCTION__ . ":: Schalten fehlgeschlagen: ID $variableId -> $valueForIps");
     }
 
@@ -235,15 +269,20 @@ class BISSubscriber extends T2DModule
     private function extractVariableIdFromTopic(string $topic): ?int
     {
         $normalizedTopic = trim($topic, " \t\n\r\0\x0B/");
+        $this->debug(__FUNCTION__, 'Normalized topic=' . $normalizedTopic);
         if (!preg_match('#^(.+)/(\d+)/set$#', $normalizedTopic, $matches)) {
+            $this->debug(__FUNCTION__, 'Regex mismatch for expected pattern <base>/<id>/set');
             return null;
         }
 
         $incomingBase = $matches[1];
         $variableId = (int)$matches[2];
+        $this->debug(__FUNCTION__, 'Incoming base=' . $incomingBase . ' extracted id=' . $variableId);
 
         $expectedBase = $this->getExpectedCommandBaseTopic();
+        $this->debug(__FUNCTION__, 'Expected base=' . $expectedBase);
         if ($expectedBase !== '' && $incomingBase !== $expectedBase) {
+            $this->debug(__FUNCTION__, 'Base mismatch, topic ignored');
             return null;
         }
 
@@ -276,6 +315,18 @@ class BISSubscriber extends T2DModule
         }
 
         return rtrim($topic, '/');
+    }
+
+    private function printMqttDebug(IPSphpMQTT $mqtt): void
+    {
+        if (!is_array($mqtt->debugmsg)) {
+            return;
+        }
+
+        while (count($mqtt->debugmsg) > 0) {
+            $msg = array_shift($mqtt->debugmsg);
+            $this->debug('IPSphpMQTT', $msg);
+        }
     }
 
     private function GetHost(): string
