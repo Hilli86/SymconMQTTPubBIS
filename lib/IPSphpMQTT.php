@@ -243,11 +243,10 @@ class IPSphpMQTT {
         if($this->username) $buffer .= $this->strwritestring($this->username,$i);
         if($this->password) $buffer .= $this->strwritestring($this->password,$i);
 
-        $head = "  ";
-        $head[0] = chr(0x10);
-        $head[1] = chr($i);
+        $head = chr(0x10);
+        $head .= $this->setmsglength($i);
 
-        fwrite($this->socket, $head, 2);
+        fwrite($this->socket, $head, strlen($head));
         fwrite($this->socket,  $buffer);
 
         $string = $this->read(4);
@@ -324,9 +323,9 @@ class IPSphpMQTT {
         //$qos
         $cmd +=	($qos << 1);
         $head = chr($cmd);
-        $head .= chr($i);
+        $head .= $this->setmsglength($i);
 
-        fwrite($this->socket, $head, 2);
+        fwrite($this->socket, $head, strlen($head));
         fwrite($this->socket, $buffer, $i);
         $string = $this->read(2);
 
