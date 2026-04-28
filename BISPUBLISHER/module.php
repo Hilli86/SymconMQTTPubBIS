@@ -281,6 +281,40 @@ class BISPublisher extends IPSModule
 
 
 
+    /**
+     * Modul-GUID laut IPS_GetInstance unter ModuleInfo['ModuleID'] (aktuell);
+     * Fallback Root ['ModuleID'] für ältere Aufrufe.
+     */
+    private function getInstanceModuleId(int $instanceId): string
+
+    {
+
+        if ($instanceId <= 0 || !IPS_InstanceExists($instanceId)) {
+
+            return '';
+
+        }
+
+        $inst = IPS_GetInstance($instanceId);
+
+        if (isset($inst['ModuleInfo']['ModuleID']) && (string) $inst['ModuleInfo']['ModuleID'] !== '') {
+
+            return (string) $inst['ModuleInfo']['ModuleID'];
+
+        }
+
+        if (isset($inst['ModuleID']) && (string) $inst['ModuleID'] !== '') {
+
+            return (string) $inst['ModuleID'];
+
+        }
+
+        return '';
+
+    }
+
+
+
     private function debug($topic, $data)
 
     {
@@ -697,11 +731,11 @@ class BISPublisher extends IPSModule
 
         $parentId = (int) IPS_GetInstance($this->InstanceID)['ConnectionID'];
 
-        $parentModuleId = (string) IPS_GetInstance($parentId)['ModuleID'];
+        $parentModuleId = $this->getInstanceModuleId($parentId);
 
         $this->debug(__FUNCTION__, 'Parent InstanceID=' . $parentId . ' ModuleID=' . $parentModuleId);
 
-        if ($parentModuleId !== self::MODULEID_MQTT_CLIENT_NATIVE) {
+        if ($parentModuleId !== '' && $parentModuleId !== self::MODULEID_MQTT_CLIENT_NATIVE) {
 
             $this->debug(__FUNCTION__, 'Hinweis: Parent-Modul-ID ist nicht der integrierte MQTT-Client (' . self::MODULEID_MQTT_CLIENT_NATIVE . '), sondern: ' . $parentModuleId);
 
