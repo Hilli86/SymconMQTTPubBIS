@@ -25,6 +25,7 @@ class BISSubscriber extends T2DModule
      * MQTT keepalive in seconds.
      */
     const MQTT_KEEPALIVE_SECONDS = 10;
+    const LISTENER_SEMAPHORE_TIMEOUT_MS = 1;
 
     /**
      * Constructor.
@@ -95,6 +96,12 @@ class BISSubscriber extends T2DModule
             return false;
         }
 
+        $semaphoreName = __CLASS__ . '_Listen_' . $this->InstanceID;
+        if (!IPS_SemaphoreEnter($semaphoreName, self::LISTENER_SEMAPHORE_TIMEOUT_MS)) {
+            $this->debug(__FUNCTION__, 'Listen already running (parallel start blocked). This often causes reconnect loops due to duplicate ClientID.');
+            return false;
+        }
+
         $this->debug(__FUNCTION__, 'Starting listener loop');
         $this->debug(__FUNCTION__, 'Config Host=' . $this->GetHost() . ' Port=' . $this->GetPort() . ' ClientID=' . $this->GetClientID());
 
@@ -103,51 +110,56 @@ class BISSubscriber extends T2DModule
         $password = $this->GetPassword();
         $this->debug(__FUNCTION__, 'Credentials User=' . ($username !== '' ? $username : '<leer>') . ' Password=' . ($password !== '' ? '<gesetzt>' : '<leer>'));
 
-        if (!$mqtt->connect(true, null, $username, $password)) {
-            $this->printMqttDebug($mqtt);
-            IPS_LogMessage(__CLASS__, __FUNCTION__ . ':: Verbindung zum Broker fehlgeschlagen');
-            return false;
-        }
-        $this->debug(__FUNCTION__, 'Broker connection established');
-        $this->printMqttDebug($mqtt);
-
-        $subscribeTopic = $this->normalizeSubscribeTopic($this->GetSubscribeTopic());
-        $topics = array(
-            $subscribeTopic => array(
-                'qos'      => self::MQTT_QOS_0_AT_MOST_ONCE,
-                'function' => array($this, 'onMqttMessage')
-            )
-        );
-        $mqtt->subscribe($topics, self::MQTT_QOS_0_AT_MOST_ONCE);
-        $this->debug(__FUNCTION__, 'Subscribed to topic ' . $subscribeTopic);
-        $this->debug(__FUNCTION__, 'Expected command base topic ' . $this->getExpectedCommandBaseTopic());
-        $this->printMqttDebug($mqtt);
-
-        $started = time();
-        $lastLoopDebug = $started;
-        $loopCounter = 0;
-        while (true) {
-            $mqtt->proc();
-            $loopCounter++;
-
-            // Keepalive/processing visibility while waiting for messages.
-            $now = time();
-            if (($now - $lastLoopDebug) >= 5) {
-                $this->debug(__FUNCTION__, 'Listener active, loop=' . $loopCounter . ' runtime=' . ($now - $started) . 's');
+        try {
+            if (!$mqtt->connect(true, null, $username, $password)) {
                 $this->printMqttDebug($mqtt);
-                $lastLoopDebug = $now;
+                IPS_LogMessage(__CLASS__, __FUNCTION__ . ':: Verbindung zum Broker fehlgeschlagen');
+                return false;
+            }
+            $this->debug(__FUNCTION__, 'Broker connection established');
+            $this->printMqttDebug($mqtt);
+
+            $subscribeTopic = $this->normalizeSubscribeTopic($this->GetSubscribeTopic());
+            $topics = array(
+                $subscribeTopic => array(
+                    'qos'      => self::MQTT_QOS_0_AT_MOST_ONCE,
+                    'function' => array($this, 'onMqttMessage')
+                )
+            );
+            $mqtt->subscribe($topics, self::MQTT_QOS_0_AT_MOST_ONCE);
+            $this->debug(__FUNCTION__, 'Subscribed to topic ' . $subscribeTopic);
+            $this->debug(__FUNCTION__, 'Expected command base topic ' . $this->getExpectedCommandBaseTopic());
+            $this->debug(__FUNCTION__, 'Note: If you see immediate EOF reconnects, check for duplicate listener starts or duplicate ClientID usage.');
+            $this->printMqttDebug($mqtt);
+
+            $started = time();
+            $lastLoopDebug = $started;
+            $loopCounter = 0;
+            while (true) {
+                $mqtt->proc();
+                $loopCounter++;
+
+                // Keepalive/processing visibility while waiting for messages.
+                $now = time();
+                if (($now - $lastLoopDebug) >= 5) {
+                    $this->debug(__FUNCTION__, 'Listener active, loop=' . $loopCounter . ' runtime=' . ($now - $started) . 's');
+                    $this->printMqttDebug($mqtt);
+                    $lastLoopDebug = $now;
+                }
+
+                if ($durationSeconds > 0 && (time() - $started) >= $durationSeconds) {
+                    $this->debug(__FUNCTION__, 'Duration reached, stopping listener');
+                    break;
+                }
             }
 
-            if ($durationSeconds > 0 && (time() - $started) >= $durationSeconds) {
-                $this->debug(__FUNCTION__, 'Duration reached, stopping listener');
-                break;
-            }
+            $this->printMqttDebug($mqtt);
+            $mqtt->close();
+            $this->debug(__FUNCTION__, 'Listener stopped, MQTT closed');
+            return true;
+        } finally {
+            IPS_SemaphoreLeave($semaphoreName);
         }
-
-        $this->printMqttDebug($mqtt);
-        $mqtt->close();
-        $this->debug(__FUNCTION__, 'Listener stopped, MQTT closed');
-        return true;
     }
 
     /**
