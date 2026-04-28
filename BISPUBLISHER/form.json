@@ -20,12 +20,20 @@
 		},
 		{
 			"type": "Label",
-			"caption": "Das veröffentlichte MQTT-Topic ist nur diese Vorlage (inkl. Platzhalter) – unabhängig von den Abonnements des MQTT-Clients. Der Broker erhält genau diesen Topic-String; es gibt keine automatische Verknüpfung mit der Client-Konfiguration."
+			"caption": "Platzhalter: %varid%, %varident%, %path% (Pfad mit Unterstrichen)."
 		},
 		{
-			"name": "PublishBufferLegacyFunction",
+			"type": "Label",
+			"caption": "Das veröffentlichte Topic kommt nur aus dieser Vorlage (inkl. Platzhalter), unabhängig von den Abo-Filtern des MQTT-Clients."
+		},
+		{
+			"type": "Label",
+			"caption": "Standard: natives Symcon-Paket (PacketType 3). Nur bei Parent „MQTTClient“ (Schnittcher) „Buffer“-Format aktivieren."
+		},
+		{
+			"name": "PublishSchnittcherBuffer",
 			"type": "CheckBox",
-			"caption": "Publish-Buffer mit „Function“: „Publish“ (Schnittcher/Legacy; sonst nur Topic/Payload/Retain/QoS)"
+			"caption": "Schnittcher MQTTClient: Publish über Buffer/utf8_encode (nicht integrierter MQTT-Client)"
 		},
 		{
 			"name": "Subscriptions",

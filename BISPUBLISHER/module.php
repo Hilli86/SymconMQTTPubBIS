@@ -52,6 +52,8 @@ class BISPublisher extends IPSModule
 
     const DATA_MQTT_CLIENT_TX_TO_PARENT = '{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}';
 
+    const MQTT_PACKET_TYPE_PUBLISH = 3;
+
     /** Integrierter Symcon-MQTT-Client (Gateway), Modul-{F7A0DD2E-…} */
     const MODULEID_MQTT_CLIENT_NATIVE = '{F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}';
 
@@ -83,7 +85,7 @@ class BISPublisher extends IPSModule
 
         $this->RegisterPropertyBoolean('Active', false);
 
-        $this->RegisterPropertyBoolean('PublishBufferLegacyFunction', false);
+        $this->RegisterPropertyBoolean('PublishSchnittcherBuffer', false);
 
         $this->RegisterPropertyString('Subscriptions', json_encode(array()));
 
@@ -710,8 +712,9 @@ class BISPublisher extends IPSModule
 
 
     /**
-     * Device -> Parent: DataID 043EA491, Buffer = JSON (nach utf8_decode im Parent).
-     * Integrierter MQTT-Client: oft nur Topic/Payload/Retain (ohne Function-Key); Schnittcher akzeptiert beides.
+     * Nativer IP-Symcon-MQTT-Client: flaches SendDataToParent-JSON (Community / Module):
+     * DataID 043EA491, PacketType 3 (Publish), QualityOfService, Retain, Topic, Payload.
+     * Schnittcher-MQTTClient (alt): JSON in Buffer mit utf8_encode, siehe Eigenschaft.
      */
     private function mqtt_publish_via_parent(string $topic, string $content, $objectID)
 
@@ -741,28 +744,40 @@ class BISPublisher extends IPSModule
 
         }
 
-        $innerPayload = array(
-            'Topic'   => $topic,
-            'Payload' => $content,
-            'Retain'  => $this->retained ? 1 : 0,
-            'QoS'     => (int) $this->qos,
-        );
+        if ((bool) IPS_GetProperty($this->InstanceID, 'PublishSchnittcherBuffer')) {
 
-        if ((bool) IPS_GetProperty($this->InstanceID, 'PublishBufferLegacyFunction')) {
+            $innerPayload = array(
+                'Topic'   => $topic,
+                'Payload' => $content,
+                'Retain'  => $this->retained ? 1 : 0,
+                'QoS'     => (int) $this->qos,
+            );
 
-            $innerPayload['Function'] = 'Publish';
+            $inner = json_encode($innerPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+            $packet = json_encode(
+                array(
+                    'DataID' => self::DATA_MQTT_CLIENT_TX_TO_PARENT,
+                    'Buffer' => utf8_encode($inner),
+                ),
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            );
+
+        } else {
+
+            $packet = json_encode(
+                array(
+                    'DataID'           => self::DATA_MQTT_CLIENT_TX_TO_PARENT,
+                    'PacketType'       => self::MQTT_PACKET_TYPE_PUBLISH,
+                    'QualityOfService' => (int) $this->qos,
+                    'Retain'           => (bool) $this->retained,
+                    'Topic'            => $topic,
+                    'Payload'          => $content,
+                ),
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            );
 
         }
-
-        $inner = json_encode($innerPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        $packet = json_encode(
-            array(
-                'DataID' => self::DATA_MQTT_CLIENT_TX_TO_PARENT,
-                'Buffer' => utf8_encode($inner),
-            ),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-        );
 
         $this->debug(__FUNCTION__, 'SendDataToParent: ' . $packet);
 
