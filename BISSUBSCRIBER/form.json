@@ -2,7 +2,7 @@
 	"elements": [
 		{
 			"type": "Label",
-			"caption": "Im Objektbaum unter „MQTT Client“ einhängen (Modul {F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}). Broker und Abos dort; diese Instanz nur per Verbindung koppeln."
+			"caption": "Im Objektbaum unter „MQTT Client“ einhängen (Modul {F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}). Broker, Topics und Abonnements nur dort konfigurieren; diese Instanz wertet eingehende Nachrichten im Muster …/<Variablen-ID>/set (Payload 0|1) aus."
 		},
 		{
 			"type": "CheckBox",
@@ -13,16 +13,6 @@
 			"type": "CheckBox",
 			"name": "Debug",
 			"caption": "Debug-Ausgaben"
-		},
-		{
-			"type": "ValidationTextBox",
-			"name": "SubscribeTopic",
-			"caption": "Subscribe-Topic (MQTT-Filter)"
-		},
-		{
-			"type": "CheckBox",
-			"name": "SubscribeOnApply",
-			"caption": "Beim Übernehmen automatisch beim Gateway abonnieren (empfohlen)"
 		}
 	],
 	"status": [
@@ -35,6 +25,11 @@
 			"code": 104,
 			"icon": "inactive",
 			"caption": "Inaktiv"
+		},
+		{
+			"code": 202,
+			"icon": "error",
+			"caption": "Kein aktiver MQTT-Client (nicht verbunden oder Parent nicht aktiv)"
 		}
 	]
 }

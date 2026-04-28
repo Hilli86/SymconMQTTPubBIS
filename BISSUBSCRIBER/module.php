@@ -18,8 +18,6 @@ class BISSubscriber extends IPSModule
 
     /** Kind <- integrierter Symcon „MQTT Client“ (IPS_GetModule ChildRequirements) */
     const DATA_MQTT_CLIENT_CHILD_RX = '{7F7632D9-FA40-4F38-8DEA-C83CD4325A32}';
-    /** Kind -> Parent MQTT Client (IPS_GetModule Implemented, u. a. für ForwardData) */
-    const DATA_MQTT_CLIENT_TX_TO_PARENT = '{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}';
 
     public function Create()
     {
@@ -27,8 +25,6 @@ class BISSubscriber extends IPSModule
 
         $this->RegisterPropertyBoolean('Debug', false);
         $this->RegisterPropertyBoolean('Active', false);
-        $this->RegisterPropertyString('SubscribeTopic', 'BIS/IPS/#');
-        $this->RegisterPropertyBoolean('SubscribeOnApply', true);
 
         $this->RegisterMessage(0, self::IPS_KERNELMESSAGE);
 
@@ -57,7 +53,6 @@ class BISSubscriber extends IPSModule
         }
 
         $this->SetStatus(self::ST_AKTIV);
-        $this->sendSubscribeToParent();
     }
 
     public function MessageSink($TimeStamp, $SenderID, $Message, $Data)
@@ -66,7 +61,6 @@ class BISSubscriber extends IPSModule
             $this->RegisterMessage(0, self::IPS_KERNELMESSAGE);
             if ($this->isModuleActive() && $this->hasActiveParentConnection()) {
                 $this->SetStatus(self::ST_AKTIV);
-                $this->sendSubscribeToParent();
             }
         }
     }
@@ -111,7 +105,7 @@ class BISSubscriber extends IPSModule
 
         $variableId = $this->extractVariableIdFromTopic($topic);
         if ($variableId === null) {
-            $this->moduleDebug(__FUNCTION__, 'Topic ignoriert (kein gültiges <id>/set zum SubscribeTopic): ' . $topic);
+            $this->moduleDebug(__FUNCTION__, 'Topic ignoriert (Muster: Präfix/<Variablen-ID>/set): ' . $topic);
             return;
         }
         $this->moduleDebug(__FUNCTION__, 'Variable id=' . $variableId);
@@ -249,15 +243,6 @@ class BISSubscriber extends IPSModule
         return '';
     }
 
-    private function normalizeSubscribeTopic(string $topic): string
-    {
-        $topic = trim($topic);
-        if ($topic === '') {
-            return 'BIS/IPS/#';
-        }
-        return ltrim($topic, '/');
-    }
-
     private function extractVariableIdFromTopic(string $topic): ?int
     {
         $normalizedTopic = trim($topic, " \t\n\r\0\x0B/");
@@ -266,67 +251,9 @@ class BISSubscriber extends IPSModule
             return null;
         }
 
-        $incomingBase = $matches[1];
         $variableId = (int)$matches[2];
-        $this->moduleDebug(__FUNCTION__, 'Base=' . $incomingBase . ' id=' . $variableId);
-
-        $expectedBase = $this->getExpectedCommandBaseTopic();
-        if ($expectedBase !== '' && $incomingBase !== $expectedBase) {
-            $this->moduleDebug(__FUNCTION__, 'Base passt nicht, ignoriert');
-            return null;
-        }
+        $this->moduleDebug(__FUNCTION__, 'Variable id=' . $variableId);
 
         return $variableId;
-    }
-
-    private function getExpectedCommandBaseTopic(): string
-    {
-        $topic = $this->normalizeSubscribeTopic($this->getSubscribeTopicProperty());
-        $topic = trim($topic, " \t\n\r\0\x0B/");
-
-        if (substr($topic, -2) === '/#') {
-            return substr($topic, 0, -2);
-        }
-
-        if (substr($topic, -6) === '/+/set') {
-            return substr($topic, 0, -6);
-        }
-
-        if (substr($topic, -2) === '/+') {
-            return substr($topic, 0, -2);
-        }
-
-        return rtrim($topic, '/');
-    }
-
-    private function sendSubscribeToParent(): void
-    {
-        if (!$this->hasActiveParentConnection()) {
-            $this->moduleDebug(__FUNCTION__, 'Kein Parent – Subscribe übersprungen');
-            return;
-        }
-
-        if (!(bool)IPS_GetProperty($this->InstanceID, 'SubscribeOnApply')) {
-            $this->moduleDebug(__FUNCTION__, 'SubscribeOnApply aus');
-            return;
-        }
-
-        $topic = $this->normalizeSubscribeTopic($this->getSubscribeTopicProperty());
-
-        $packet = json_encode(
-            array(
-                'DataID'  => self::DATA_MQTT_CLIENT_TX_TO_PARENT,
-                'Function'=> 'Subscribe',
-                'Topic'   => $topic,
-            ),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-        );
-        $this->moduleDebug(__FUNCTION__, 'SendDataToParent: ' . $packet);
-        @$this->SendDataToParent($packet);
-    }
-
-    private function getSubscribeTopicProperty(): string
-    {
-        return (string)IPS_GetProperty($this->InstanceID, 'SubscribeTopic');
     }
 }
