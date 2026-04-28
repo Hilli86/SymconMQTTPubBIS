@@ -2,22 +2,65 @@
 	"elements": [
 		{
 			"type": "Label",
-			"label": "Registrierte Variablen werden bei Wertänderung als JSON an den MQTT-Broker gesendet (Skript: MQTTPUB_Subscribe)."
+			"caption": "Im Objektbaum unter „MQTT Client“ einhängen (Modul {F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}). Broker und Anmeldung nur dort; diese Instanz publiziert geänderte Variablen per Topic-Vorlage."
 		},
-		{ "name": "Active", "type": "CheckBox", "caption": "Instanz aktiv" },
-		{ "type": "Label", "label": "Verbindung" },
-		{ "name": "Host", "type": "ValidationTextBox", "caption": "MQTT-Broker (Host / IP)" },
-		{ "name": "Port", "type": "NumberSpinner", "caption": "MQTT-Port" },
-		{ "name": "User", "type": "ValidationTextBox", "caption": "Benutzername (optional)" },
-		{ "name": "Password", "type": "PasswordTextBox", "caption": "Passwort (optional)" },
-		{ "name": "ClientID", "type": "ValidationTextBox", "caption": "MQTT-Client-ID (Basis, Hostname wird angehängt)" },
-		{ "type": "Label", "label": "Veröffentlichung" },
-		{ "name": "Topic", "type": "ValidationTextBox", "caption": "MQTT-Topic-Vorlage" },
-		{ "type": "Label", "label": "Platzhalter im Topic: %varid%, %varident%, %path% (Pfad mit Unterstrichen)" },
-		{ "name": "Subscriptions", "type": "ValidationTextBox", "caption": "Abonnierte Variablen-IDs (JSON-Array, z. B. [12345,67890])" },
-		{ "type": "Label", "label": "Leeres Array []: keine Variablen; IDs per Skript ergänzen oder hier eintragen." },
-		{ "type": "Label", "label": "Protokollierung" },
-		{ "name": "LogFile", "type": "ValidationTextBox", "caption": "CSV-Logdatei (optional, voller Pfad)" },
-		{ "name": "Debug", "type": "CheckBox", "caption": "Debug-Ausgaben (IPS-Log)" }
+		{
+			"name": "Active",
+			"type": "CheckBox",
+			"caption": "Instanz aktiv"
+		},
+		{
+			"type": "Label",
+			"caption": "Veröffentlichung"
+		},
+		{
+			"name": "Topic",
+			"type": "ValidationTextBox",
+			"caption": "MQTT-Topic-Vorlage"
+		},
+		{
+			"type": "Label",
+			"caption": "Platzhalter: %varid%, %varident%, %path% (Pfad mit Unterstrichen)"
+		},
+		{
+			"name": "Subscriptions",
+			"type": "ValidationTextBox",
+			"caption": "Abonnierte Variablen-IDs (JSON-Array, z. B. [12345,67890])"
+		},
+		{
+			"type": "Label",
+			"caption": "Leeres Array []: keine Variablen; IDs per Skript (MQTTPUB_Subscribe) oder hier eintragen."
+		},
+		{
+			"type": "Label",
+			"caption": "Protokollierung"
+		},
+		{
+			"name": "LogFile",
+			"type": "ValidationTextBox",
+			"caption": "CSV-Logdatei (optional, voller Pfad)"
+		},
+		{
+			"name": "Debug",
+			"type": "CheckBox",
+			"caption": "Debug-Ausgaben (IPS-Log)"
+		}
+	],
+	"status": [
+		{
+			"code": 102,
+			"icon": "active",
+			"caption": "Aktiv"
+		},
+		{
+			"code": 104,
+			"icon": "inactive",
+			"caption": "Inaktiv"
+		},
+		{
+			"code": 202,
+			"icon": "error",
+			"caption": "Kein aktiver MQTT-Client (nicht verbunden oder Parent nicht aktiv)"
+		}
 	]
 }
